@@ -13,6 +13,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 TOKEN = os.getenv("8782578238:AAE74KCzODZRAzstGlYv0ahYnIrtyBfJzVc")
 DB_NAME = "quotes.db"
 
+if TOKEN is None:
+    raise RuntimeError("TOKEN environment variable is not set")
+
 bot = Bot(
     token=TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -22,7 +25,6 @@ dp = Dispatcher()
 
 async def init_db():
     db = await aiosqlite.connect(DB_NAME)
-
     await db.execute("""
         CREATE TABLE IF NOT EXISTS quotes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,7 +156,6 @@ async def list_quotes(message: Message):
         short_text = quote_text[:25]
         if len(quote_text) > 25:
             short_text += "..."
-
         builder.button(
             text=f"{created_at} | {short_text}",
             callback_data=f"quote:{message.chat.id}:{quote_id}",
@@ -193,47 +194,7 @@ async def show_quote(callback: CallbackQuery):
     await callback.answer()
 
 
-@dp.message(Command("exp"))
-async def exp_command(message: Message):
-    if message.reply_to_message is None:
-        await message.answer("Ответь командой /exp на сообщение пользователя.")
-        return
-
-    user = message.reply_to_message.from_user
-    if user is None:
-        await message.answer("Пользователь не найден.")
-        return
-
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            """
-            SELECT quote, created_at
-            FROM quotes
-            WHERE chat_id = ? AND user_id = ?
-            ORDER BY RANDOM()
-            LIMIT 1
-            """,
-            (message.chat.id, user.id),
-        )
-        result = await cursor.fetchone()
-
-    if result is None:
-        await message.answer("В этом чате цитата не найдена.")
-        return
-
-    quote, created_at = result
-
-    await message.answer(
-        f"@{user.username or user.full_name}\n\n"
-        f"📅 {created_at}\n\n"
-        f"💬 {quote}"
-    )
-
-
 async def main():
-    if TOKEN is None:
-        raise RuntimeError("TOKEN is not set")
-
     await init_db()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
