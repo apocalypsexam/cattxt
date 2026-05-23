@@ -10,13 +10,11 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-TOKEN = ""
+TOKEN = os.getenv("8782578238:AAE74KCzODZRAzstGlYv0ahYnIrtyBfJzVc")
 DB_NAME = "quotes.db"
 
-if TOKEN is None:
+if not TOKEN:
     raise RuntimeError("TOKEN environment variable is not set")
-
-print("TOKEN=", os.getenv("TOKEN"))
 
 bot = Bot(
     token=TOKEN,
@@ -26,31 +24,18 @@ dp = Dispatcher()
 
 
 async def init_db():
-    db = await aiosqlite.connect(DB_NAME)
-    await db.execute("""
-        CREATE TABLE IF NOT EXISTS quotes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            quote TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )
-    """)
-
-    cursor = await db.execute("PRAGMA table_info(quotes)")
-    columns = await cursor.fetchall()
-    col_names = [col[1] for col in columns]
-
-    if "chat_id" not in col_names:
-        await db.execute("ALTER TABLE quotes ADD COLUMN chat_id INTEGER")
-    if "username" not in col_names:
-        await db.execute("ALTER TABLE quotes ADD COLUMN username TEXT")
-    if "created_at" not in col_names:
-        await db.execute("ALTER TABLE quotes ADD COLUMN created_at TEXT")
-
-    await db.commit()
-    await db.close()
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS quotes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                quote TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        await db.commit()
 
 
 async def add_quote(chat_id: int, user_id: int, username: str, quote: str, created_at: str):
@@ -105,18 +90,17 @@ async def start(message: Message):
 
 @dp.message(Command("save"))
 async def save_quote(message: Message):
-    if message.reply_to_message is None:
+    if not message.reply_to_message:
         await message.answer("Ответь командой /save на нужное сообщение.")
         return
 
     target_message = message.reply_to_message
-
     if not target_message.text:
         await message.answer("Можно сохранять только текстовые сообщения.")
         return
 
     user = target_message.from_user
-    if user is None:
+    if not user:
         await message.answer("Пользователь не найден.")
         return
 
@@ -137,27 +121,23 @@ async def save_quote(message: Message):
 
 @dp.message(Command("list"))
 async def list_quotes(message: Message):
-    if message.reply_to_message is None:
+    if not message.reply_to_message:
         await message.answer("Ответь командой /list на сообщение пользователя.")
         return
 
     user = message.reply_to_message.from_user
-    if user is None:
+    if not user:
         await message.answer("Пользователь не найден.")
         return
 
     quotes = await get_quotes_by_chat_and_user(message.chat.id, user.id)
-
     if not quotes:
         await message.answer("В этом чате сохранённых сообщений нет.")
         return
 
     builder = InlineKeyboardBuilder()
-
     for quote_id, quote_text, created_at in quotes:
-        short_text = quote_text[:25]
-        if len(quote_text) > 25:
-            short_text += "..."
+        short_text = quote_text[:25] + ("..." if len(quote_text) > 25 else "")
         builder.button(
             text=f"{created_at} | {short_text}",
             callback_data=f"quote:{message.chat.id}:{quote_id}",
@@ -173,6 +153,10 @@ async def list_quotes(message: Message):
 
 @dp.callback_query(F.data.startswith("quote:"))
 async def show_quote(callback: CallbackQuery):
+    if not callback.data:
+        await callback.answer("Ошибка данных", show_alert=True)
+        return
+
     parts = callback.data.split(":")
     if len(parts) != 3:
         await callback.answer("Ошибка данных", show_alert=True)
@@ -182,12 +166,11 @@ async def show_quote(callback: CallbackQuery):
     quote_id = int(parts[2])
 
     data = await get_quote_by_id(chat_id, quote_id)
-    if data is None:
+    if not data:
         await callback.answer("Сообщение не найдено", show_alert=True)
         return
 
     username, quote, created_at = data
-
     await callback.message.answer(
         f"@{username}\n\n"
         f"📅 {created_at}\n\n"
