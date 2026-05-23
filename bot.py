@@ -16,6 +16,8 @@ DB_NAME = "quotes.db"
 if TOKEN is None:
     raise RuntimeError("TOKEN environment variable is not set")
 
+print("TOKEN=", os.getenv("TOKEN"))
+
 bot = Bot(
     token=TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
