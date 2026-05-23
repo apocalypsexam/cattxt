@@ -10,7 +10,7 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-TOKEN = os.getenv("8782578238:AAE74KCzODZRAzstGlYv0ahYnIrtyBfJzVc")
+TOKEN = "8782578238:AAE74KCzODZRAzstGlYv0ahYnIrtyBfJzVc"
 DB_NAME = "quotes.db"
 
 if TOKEN is None:
